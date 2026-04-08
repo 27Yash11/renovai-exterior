@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RenovAI - Exterior Renovation Estimator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='index.css') }}">
+</head>
+
+<body>
+    <header>
+        <h1>RenovAI</h1>
+        <p>AI-Powered House Exterior Renovation & Estimation</p>
+    </header>
+
+    <main>
+        {% if error %}
+        <div class="glass-panel"
+            style="background: rgba(239, 68, 68, 0.1); border-color: rgb(239, 68, 68); margin-bottom:1rem;">
+            <p style="color: #fca5a5; font-weight: 600;">⚠ {{ error }}</p>
+        </div>
+        {% endif %}
+
+        <div class="glass-panel empty-state">
+            <h2>Transform Your Home Instantly</h2>
+            <p style="color:var(--text-muted); margin-bottom: 2rem;">Upload a clear photo of your home's exterior to begin. The AI will detect walls and let you apply materials.</p>
+
+            <form action="/upload" method="POST" enctype="multipart/form-data" id="uploadForm" style="align-items: center;">
+                <div class="input-group" style="width: 100%; max-width: 500px;">
+                    <input type="file" name="image" id="image" accept="image/*" required onchange="previewImage(event)">
+                </div>
+
+                <div id="preview-container" style="display:none; width:100%; max-width:500px; margin-top:1rem;">
+                    <img id="preview-img" style="width:100%; border-radius:12px; border:1px solid var(--glass-border);" alt="Preview">
+                </div>
+
+                <button type="submit" id="submitBtn" style="width: 100%; max-width: 500px; margin-top:1.5rem;" onclick="showLoading()">
+                    Analyze My House
+                </button>
+                <p id="loading-msg" style="display:none; color:var(--text-muted); margin-top:0.5rem; font-size:0.9rem;">
+                    ⏳ Analyzing image with AI... this may take 20–40 seconds on first run.
+                </p>
+            </form>
+        </div>
+
+        <div class="glass-panel" style="padding: 1.5rem 2rem;">
+            <h3 style="margin-bottom:1rem; font-size:1rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:1px;">How It Works</h3>
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:1rem; text-align:center;">
+                <div style="padding:1rem;">
+                    <div style="font-size:2rem;">📸</div>
+                    <p style="font-weight:600; margin:0.5rem 0 0.25rem;">1. Upload Photo</p>
+                    <p style="color:var(--text-muted); font-size:0.85rem;">A clear exterior shot of your house</p>
+                </div>
+                <div style="padding:1rem;">
+                    <div style="font-size:2rem;">🤖</div>
+                    <p style="font-weight:600; margin:0.5rem 0 0.25rem;">2. AI Detection</p>
+                    <p style="color:var(--text-muted); font-size:0.85rem;">Walls, windows & doors are auto-detected</p>
+                </div>
+                <div style="padding:1rem;">
+                    <div style="font-size:2rem;">🎨</div>
+                    <p style="font-weight:600; margin:0.5rem 0 0.25rem;">3. Apply Materials</p>
+                    <p style="color:var(--text-muted); font-size:0.85rem;">Paint, stone, tiles, or texture plaster</p>
+                </div>
+                <div style="padding:1rem;">
+                    <div style="font-size:2rem;">📊</div>
+                    <p style="font-weight:600; margin:0.5rem 0 0.25rem;">4. Get Estimate</p>
+                    <p style="color:var(--text-muted); font-size:0.85rem;">Area, quantity & cost breakdown report</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        function previewImage(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                document.getElementById('preview-img').src = e.target.result;
+                document.getElementById('preview-container').style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function showLoading() {
+            const btn = document.getElementById('submitBtn');
+            const msg = document.getElementById('loading-msg');
+            // Small delay to let form validation run first
+            setTimeout(() => {
+                if (document.getElementById('image').files.length > 0) {
+                    btn.disabled = true;
+                    btn.textContent = 'Analyzing...';
+                    msg.style.display = 'block';
+                }
+            }, 100);
+        }
+    </script>
+</body>
+
+</html>

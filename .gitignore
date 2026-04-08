@@ -1,0 +1,17 @@
+env/
+__pycache__/
+*.pyc
+
+# Do not commit user uploads and masks
+static/uploads/*
+!static/uploads/.gitkeep
+
+static/masks/*
+!static/masks/.gitkeep
+
+static/outputs/*
+!static/outputs/.gitkeep
+
+.DS_Store
+
+env/

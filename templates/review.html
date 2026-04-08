@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Step 2: Adjust & Material Selection</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='index.css') }}">
+</head>
+
+<body>
+    <header>
+        <h1>RenovAI</h1>
+        <p>Step 2: Review Artificial Intelligence Detection</p>
+    </header>
+
+    <main style="max-width: 1400px; display: grid; grid-template-columns: 1fr 350px; gap: 2rem;">
+        <!-- Canvas Editor Section -->
+        <div class="glass-panel">
+            <h2 style="margin-bottom: 0.5rem;">Step 2: Review Detected Structure</h2>
+            <p style="color:var(--text-muted); margin-bottom: 0.8rem; font-size: 0.9rem;">The AI has mapped the building
+                structure. Use the brush/eraser to refine the wall selection. Only the <strong
+                    style="color:#ef4444;">red</strong> area will be painted.</p>
+
+            <!-- Structural region legend -->
+            <div
+                style="display:flex; gap: 1.2rem; flex-wrap: wrap; margin-bottom: 1rem; padding: 0.75rem 1rem; background: rgba(0,0,0,0.2); border-radius: 8px; font-size: 0.8rem;">
+                <span><span
+                        style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#ef4444;margin-right:4px;"></span>Walls
+                    (paintable)</span>
+                <span><span
+                        style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#3b82f6;margin-right:4px;"></span>Windows</span>
+                <span><span
+                        style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#22c55e;margin-right:4px;"></span>Doors</span>
+                <span><span
+                        style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#f59e0b;margin-right:4px;"></span>Railings</span>
+                <span style="color:var(--text-muted);">When you submit, only the <strong
+                        style="color:#ef4444;">red</strong> region gets the material applied.</span>
+            </div>
+
+            <div
+                style="background: rgba(0,0,0,0.2); border-radius: 8px; padding: 0.5rem; display: flex; gap: 1rem; align-items: center; margin-bottom: 1rem;">
+                <button id="addBtn" class="btn-secondary"
+                    style="border-color: var(--primary); background: rgba(79,70,229,0.2);">🖌️ Add to Mask</button>
+                <button id="eraseBtn" class="btn-secondary">🧹 Erase from Mask</button>
+
+                <div style="display:flex; flex-direction:column; margin-left: 1rem;">
+                    <label style="font-size:0.8rem; color:var(--text-muted);">Brush Size: <span
+                            id="sizeVal">30</span></label>
+                    <input type="range" id="brushSize" min="5" max="100" value="30">
+                </div>
+            </div>
+
+            <div id="editor-container"
+                style="position: relative; width: 100%; border: 1px solid var(--glass-border); border-radius: 8px; overflow: hidden; background: #000;">
+                <img id="bgImg" src="/{{ input_image }}" style="width: 100%; display: block;" crossorigin="anonymous">
+                <!-- Canvas takes exactly the dimensions of the natural image internally, but shrinks to fit via CSS width 100% -->
+                <canvas id="maskCanvas"
+                    style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0.5; cursor: crosshair; touch-action: none;"></canvas>
+            </div>
+        </div>
+
+        <!-- Controls Section -->
+        <div class="glass-panel" style="height: fit-content; position: sticky; top: 2rem;">
+            <form id="processForm" action="/process" method="POST">
+                <input type="hidden" name="filename" value="{{ filename }}">
+                <input type="hidden" name="maskData" id="maskData">
+
+                <h3 style="margin-bottom: 1rem;">Design Preferences</h3>
+
+                <div class="input-group">
+                    <label for="material">Material Selection</label>
+                    <select name="material" id="material" onchange="toggleColorInput()">
+                        <option value="paint">Wall Paint</option>
+                        <option value="stone">Stone Cladding</option>
+                        <option value="tiles">Tiles</option>
+                        <option value="texture">Texture Plaster</option>
+                    </select>
+                </div>
+
+                <div class="input-group" id="color-group">
+                    <label for="color">Paint Color</label>
+                    <input type="color" name="color" id="color" value="#1E3A8A">
+                </div>
+
+                <div class="input-group" style="margin-top: 1rem;">
+                    <label for="door_height">Reference Door Height (ft)</label>
+                    <input type="number" step="0.1" name="door_height" id="door_height" value="7.0" required>
+                </div>
+
+                <button type="button" id="renderBtn" onclick="submitData()"
+                    style="width: 100%; margin-top: 1.5rem; background: linear-gradient(to right, #10b981, #059669);">✅
+                    Confirm
+                    & Render</button>
+                <p id="render-loading"
+                    style="display:none; color:var(--text-muted); font-size:0.85rem; margin-top:0.5rem; text-align:center;">
+                    ⏳ Applying material & calculating estimate...</p>
+            </form>
+        </div>
+    </main>
+
+    <script>
+        const bgImg = document.getElementById('bgImg');
+        const maskCanvas = document.getElementById('maskCanvas');
+        const ctx = maskCanvas.getContext('2d', { willReadFrequently: true });
+
+        let isDrawing = false;
+        let mode = 'add';
+
+        // Tools
+        const addBtn = document.getElementById('addBtn');
+        const eraseBtn = document.getElementById('eraseBtn');
+        const brushSizeSlider = document.getElementById('brushSize');
+        const sizeVal = document.getElementById('sizeVal');
+
+        addBtn.onclick = () => {
+            mode = 'add';
+            addBtn.style.background = 'rgba(79,70,229,0.2)';
+            addBtn.style.borderColor = 'var(--primary)';
+            eraseBtn.style.background = 'rgba(255,255,255,0.1)';
+            eraseBtn.style.borderColor = 'var(--glass-border)';
+        };
+
+        eraseBtn.onclick = () => {
+            mode = 'erase';
+            eraseBtn.style.background = 'rgba(239,68,68,0.2)';
+            eraseBtn.style.borderColor = '#ef4444';
+            addBtn.style.background = 'rgba(255,255,255,0.1)';
+            addBtn.style.borderColor = 'var(--glass-border)';
+        };
+
+        brushSizeSlider.oninput = (e) => {
+            sizeVal.textContent = e.target.value;
+        };
+
+        bgImg.onload = () => {
+            // Match internal canvas resolution to actual image pixels
+            maskCanvas.width = bgImg.naturalWidth;
+            maskCanvas.height = bgImg.naturalHeight;
+
+            // Load the AI generated mask
+            const aiMask = new Image();
+            aiMask.crossOrigin = "Anonymous";
+            aiMask.onload = () => {
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.drawImage(aiMask, 0, 0, maskCanvas.width, maskCanvas.height);
+            };
+            aiMask.src = "/{{ mask_image }}";
+        };
+
+        function startDrawing(e) {
+            isDrawing = true;
+            draw(e);
+        }
+
+        function stopDrawing() {
+            isDrawing = false;
+            ctx.beginPath();
+        }
+
+        function draw(e) {
+            if (!isDrawing) return;
+
+            // Calculate coordinates based on resized css view vs internal canvas resolution
+            const rect = maskCanvas.getBoundingClientRect();
+
+            // Handle touch and mouse events
+            let clientX = e.clientX;
+            let clientY = e.clientY;
+            if (e.touches && e.touches.length > 0) {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+                e.preventDefault();
+            }
+
+            const x = (clientX - rect.left) * (maskCanvas.width / rect.width);
+            const y = (clientY - rect.top) * (maskCanvas.height / rect.height);
+
+            ctx.lineWidth = brushSizeSlider.value * (maskCanvas.width / rect.width);
+            ctx.lineCap = 'round';
+
+            if (mode === 'add') {
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.strokeStyle = '#ef4444';
+            } else {
+                ctx.globalCompositeOperation = 'destination-out';
+                ctx.strokeStyle = 'rgba(0,0,0,1)';
+            }
+
+            ctx.lineTo(x, y);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+        }
+
+        maskCanvas.addEventListener('mousedown', startDrawing);
+        maskCanvas.addEventListener('mousemove', draw);
+        maskCanvas.addEventListener('mouseup', stopDrawing);
+        maskCanvas.addEventListener('mouseout', stopDrawing);
+
+        maskCanvas.addEventListener('touchstart', startDrawing, { passive: false });
+        maskCanvas.addEventListener('touchmove', draw, { passive: false });
+        maskCanvas.addEventListener('touchend', stopDrawing);
+
+        function toggleColorInput() {
+            var mat = document.getElementById('material').value;
+            var colGrp = document.getElementById('color-group');
+            colGrp.style.display = (mat === 'paint') ? 'flex' : 'none';
+        }
+        toggleColorInput();
+
+        function submitData() {
+            // Reset composition to default before extracting Base64
+            ctx.globalCompositeOperation = 'source-over';
+            // Put canvas data URL into the hidden form field
+            document.getElementById('maskData').value = maskCanvas.toDataURL('image/png');
+            document.getElementById('renderBtn').disabled = true;
+            document.getElementById('renderBtn').textContent = 'Rendering...';
+            document.getElementById('render-loading').style.display = 'block';
+            document.getElementById('processForm').submit();
+        }
+    </script>
+</body>
+
+</html>
